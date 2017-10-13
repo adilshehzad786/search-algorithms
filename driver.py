@@ -30,39 +30,48 @@ class SearchAlgorithm:
         self.nodes_expanded = 0
         self.max_search_depth = 0
         self.max_ram_usage = 0
+    
+    def order_expanded(self, list):
+        return list
 
     def search(self):
         start_time = time.time()
         visited = set()
         frontier_set = set()
-        frontier_set.add(self.frontier[0].signature())
+        frontier_set.add(self.frontier[0])
+        goal = Board.goal()
+        nodes_expanded = 0
         while not self.is_frontier_empty():
             state = self.get_next()
-            visited.add(state.signature())
-            frontier_set.remove(state.signature())
+            visited.add(state.state)
 
             self.max_ram_usage = max(self.max_ram_usage, memory_usage_resource())
-            if state.is_goal_reached():
-                self.running_time = time.time() - start_time
-                return state
+            if state.state == goal:
+                curr_state = state
+                path = []
+                while curr_state.parent:
+                    path.insert(0, curr_state.moviment)
+                    curr_state = curr_state.parent
+                return {
+                    'moviments': path,
+                    'nodes_expanded': nodes_expanded,
+                    'depth': state.depth,
+                    'running_time': time.time() - start_time,
+                    'max_ram_usage': self.max_ram_usage
+                }
 
-            self.nodes_expanded += 1
-            for moviment in state.possible_moviments():
-                new_state = state.clone().apply_moviment(moviment)
-                self.max_search_depth = max(self.max_search_depth, len(new_state.moviments))
-                if new_state.signature() not in visited and new_state.signature() not in frontier_set:
-                    self.insert(new_state)
-                    frontier_set.add(new_state.signature())
-
-        self.running_time = time.time() - start_time
-        return None
+            nodes_expanded += 1
+            for expanded in self.order_expanded(state.get_expanded()):
+                if expanded.state not in visited and expanded.state not in frontier_set:
+                    self.insert(expanded)
+                    frontier_set.add(expanded.state)
 
 class BreadthFirstSearch(SearchAlgorithm):
     def init_frontier(self):
         self.frontier = collections.deque([self.board])
 
     def insert(self, state):
-        self.frontier.append(state)
+        self.frontier.appendleft(state)
 
     def get_next(self):
         return self.frontier.pop()
@@ -78,10 +87,16 @@ class DepthFirstSearch(SearchAlgorithm):
         self.frontier.append(state)
 
     def get_next(self):
-        return self.frontier.popleft()
+        return self.frontier.pop()
 
     def is_frontier_empty(self):
         return len(self.frontier) == 0
+
+    def order_expanded(self, l):
+        _l = list(l)
+        _l.reverse()
+        return _l
+
 
 class AStarSearch(SearchAlgorithm):
     def init_frontier(self):
@@ -97,74 +112,79 @@ class AStarSearch(SearchAlgorithm):
         return len(self.frontier) == 0
 
 class Board:
-    def __init__(self, description):
-        self.rows = []
-        actualIndex = 0
-        row = []
-        for item in description.split(','):
-            if actualIndex % 3 == 0:
-                row = []
-                self.rows.append(row)
-            if item == '0':
-                self.x = actualIndex % 3
-                self.y = len(self.rows) - 1
-            row.append(int(item))
-            actualIndex += 1
-        self.moviments = []
+    LENGTH = 3
+    MAX_DEPTH = 0
+    def __init__(self, state, parent = None, cost = 0, moviment = None, depth = 0):
+        self.state = state
+        self.parent = parent
+        self.cost = cost
+        self.moviment = moviment
+        self.depth = depth
+        Board.MAX_DEPTH = max(Board.MAX_DEPTH, depth)
     def __str__(self):
-        return self.signature()
+        return self.state
 
-    def possible_moviments(self):
-        moviments = []
-        if self.y > 0:
-            moviments.append('Up')
-        if self.y < 2:
-            moviments.append('Down')
-        if self.x > 0:
-            moviments.append('Left')
-        if self.x < 2:
-            moviments.append('Right')
-        return moviments
+    @staticmethod
+    def up(state):
+        state_l = list(state)
+        index = state_l.index(0)
+        if index not in range(Board.LENGTH):
+            state_l[index - Board.LENGTH], state_l[index] = state_l[index], state_l[index - Board.LENGTH]
+            state = tuple(state_l)
+            return state
+        else:
+            return 0
 
-    def apply_moviment(self, moviment):
-        self.moviments.append(moviment)
-        if moviment == 'Up':
-            aux = self.rows[self.y][self.x]
-            self.rows[self.y][self.x] = self.rows[self.y - 1][self.x]
-            self.rows[self.y - 1][self.x] = aux
-            self.y -= 1
-        elif moviment == 'Down':
-            aux = self.rows[self.y][self.x]
-            self.rows[self.y][self.x] = self.rows[self.y + 1][self.x]
-            self.rows[self.y + 1][self.x] = aux
-            self.y += 1
-        elif moviment == 'Right':
-            aux = self.rows[self.y][self.x]
-            self.rows[self.y][self.x] = self.rows[self.y][self.x + 1]
-            self.rows[self.y][self.x + 1] = aux
-            self.x += 1
-        elif moviment == 'Left':
-            aux = self.rows[self.y][self.x]
-            self.rows[self.y][self.x] = self.rows[self.y][self.x - 1]
-            self.rows[self.y][self.x - 1] = aux
-            self.x -= 1
-        return self
+    @staticmethod
+    def down(state):
+        state_l = list(state)
+        index = state_l.index(0)
+        if index not in range(Board.LENGTH * (Board.LENGTH - 1),Board.LENGTH * Board.LENGTH):
+            state_l[index + Board.LENGTH], state_l[index] = state_l[index], state_l[index + Board.LENGTH]
+            state = tuple(state_l)
+            return state
+        else:
+            return 0
 
-    def is_goal_reached(self):
-        curr_value = 0
-        for row in self.rows:
-            for item in row:
-                if item != curr_value:
-                    return False
-                curr_value += 1
-        return True
+    @staticmethod
+    def left(state):
+        state_l = list(state)
+        index = state_l.index(0)
+        if index not in range(0,len(state), Board.LENGTH):
+            state_l[index-1], state_l[index] = state_l[index], state_l[index-1]
+            state = tuple(state_l)
+            return state
+        else:
+            return 0
 
-    def signature(self):
-        return ','.join(str(item) for innerlist in self.rows for item in innerlist)
+    @staticmethod
+    def right(state):
+        state_l = list(state)
+        index = state_l.index(0)
+        if index not in range(Board.LENGTH - 1,len(state_l), Board.LENGTH):
+            state_l[index + 1], state_l[index] = state_l[index], state_l[index + 1]
+            state = tuple(state_l)
+            return state
+        else:
+            return 0
 
-    def clone(self):
-        return copy.deepcopy(self)
+    def get_expanded(self):
+        expanded = []
+        expanded.append(Board(Board.up(self.state), self, self.cost + 1, 'Up', self.depth + 1))
+        expanded.append(Board(Board.down(self.state), self, self.cost + 1, 'Down', self.depth + 1))
+        expanded.append(Board(Board.left(self.state), self, self.cost + 1, 'Left', self.depth + 1))
+        expanded.append(Board(Board.right(self.state), self, self.cost + 1, 'Right', self.depth + 1))
 
+        expanded = [self for self in expanded if self.state != 0]
+
+        return tuple(expanded)
+
+    @staticmethod
+    def goal():
+        goal = []
+        for i in range(Board.LENGTH * Board.LENGTH):
+            goal.append(i)
+        return tuple(goal)
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -173,7 +193,7 @@ if __name__ == '__main__':
     if len(sys.argv) < 3:
         eprint('usage: python driver.py [algorithm] [board]')
         sys.exit(1)
-    board = Board(sys.argv[2])
+    board = Board(tuple([int(x) for x in sys.argv[2].split(',')]))
     algorithm = None
     if sys.argv[1] == 'bfs':
         algorithm = BreadthFirstSearch(board)
@@ -188,20 +208,20 @@ if __name__ == '__main__':
     final_board = algorithm.search()
     if final_board:
         output = open('output.txt','w')
-        output.write('path_to_goal: %s\n' % final_board.moviments)
-        output.write('cost_of_path: %s\n' % len(final_board.moviments))
-        output.write('nodes_expanded: %s\n' % algorithm.nodes_expanded)
-        output.write('search_depth: %s\n' % len(final_board.moviments))
-        output.write('max_search_depth: %s\n' % algorithm.max_search_depth)
-        output.write('running_time: %s\n' % algorithm.running_time)
-        output.write('max_ram_usage: %s\n' % algorithm.max_ram_usage)
+        output.write('path_to_goal: %s' % final_board['moviments'])
+        output.write('cost_of_path: %s' % len(final_board['moviments']))
+        output.write('nodes_expanded: %s' % final_board['nodes_expanded'])
+        output.write('search_depth: %s' % final_board['depth'])
+        output.write('max_search_depth: %s' % Board.MAX_DEPTH)
+        output.write('running_time: %s' % final_board['running_time'])
+        output.write('max_ram_usage: %s' % final_board['max_ram_usage'])
         output.close()
-#        print('path_to_goal: %s' % final_board.moviments)
-#        print('cost_of_path: %s' % len(final_board.moviments))
-#        print('nodes_expanded: %s' % algorithm.nodes_expanded)
-#        print('search_depth: %s' % len(final_board.moviments))
-#        print('max_search_depth: %s' % algorithm.max_search_depth)
-#        print('running_time: %s' % algorithm.running_time)
-#        print('max_ram_usage: %s' % algorithm.max_ram_usage)
+#        print('path_to_goal: %s' % final_board['moviments'])
+#        print('cost_of_path: %s' % len(final_board['moviments']))
+#        print('nodes_expanded: %s' % final_board['nodes_expanded'])
+#        print('search_depth: %s' % final_board['depth'])
+#        print('max_search_depth: %s' % Board.MAX_DEPTH)
+#        print('running_time: %s' % final_board['running_time'])
+#        print('max_ram_usage: %s' % final_board['max_ram_usage'])
     else:
         eprint('Not found!')
