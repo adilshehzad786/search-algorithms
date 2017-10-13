@@ -40,13 +40,13 @@ class Queue:
         return len(self.items)
 
 class PriorityQueue:
-    """PriorityQueue implementation"""
+    """PriorityQueue implementation. Use priority and index to ensure that the first inputed will be returned first in case of same priority."""
     def __init__(self):
         self._queue = []
         self._index = 0
 
     def push(self, item, priority):
-        heapq.heappush(self._queue, (-priority, self._index, item))
+        heapq.heappush(self._queue, (priority, self._index, item))
         self._index += 1
 
     def pop(self):
@@ -110,8 +110,8 @@ class BreadthFirstSearch(SearchAlgorithm):
         self.frontier = Queue()
         self.frontier.enqueue(self.board)
 
-    def insert(self, state):
-        self.frontier.enqueue(state)
+    def insert(self, node):
+        self.frontier.enqueue(node)
 
     def get_next(self):
         return self.frontier.dequeue()
@@ -125,8 +125,8 @@ class DepthFirstSearch(SearchAlgorithm):
         self.frontier = Stack()
         self.frontier.push(self.board)
 
-    def insert(self, state):
-        self.frontier.push(state)
+    def insert(self, node):
+        self.frontier.push(node)
 
     def get_next(self):
         return self.frontier.pop()
@@ -143,11 +143,12 @@ class DepthFirstSearch(SearchAlgorithm):
 class AStarSearch(SearchAlgorithm):
     """A* Search implementation using Priority Queue"""
     def init_frontier(self):
-        self.frontier = Stack()
-        self.frontier.push(self.board)
+        self.frontier = PriorityQueue()
+        self.frontier.push(self.board, self.board.cost)
+        self.goal = Board.goal()
 
-    def insert(self, state):
-        self.frontier.push(state)
+    def insert(self, node):
+        self.frontier.push(node, node.cost + node.distance(self.goal))
 
     def get_next(self):
         return self.frontier.pop()
@@ -212,6 +213,18 @@ class Board:
         new_state[index + 1], new_state[index] = new_state[index], new_state[index + 1]
         return tuple(new_state)
 
+    @staticmethod
+    def goal():
+        """Create a static goal state"""
+        goal = []
+        for i in range(Board.LENGTH * Board.LENGTH):
+            goal.append(i)
+        return tuple(goal)
+
+    @staticmethod
+    def coordinates(value):
+        return value % Board.LENGTH, value / Board.LENGTH
+
     def __str__(self):
         return self.state
     
@@ -231,13 +244,15 @@ class Board:
 
         return tuple(expanded)
 
-    @staticmethod
-    def goal():
-        """Create a static goal state"""
-        goal = []
-        for i in range(Board.LENGTH * Board.LENGTH):
-            goal.append(i)
-        return tuple(goal)
+    MAX_VALUE = (LENGTH * LENGTH) - 1
+    def distance(self, state):
+        """Calculate Manhattan distance"""
+        sum = 0
+        for value in range(1, Board.MAX_VALUE):
+            x1, y1 = Board.coordinates(self.state.index(value))
+            x2, y2 = Board.coordinates(state.index(value))
+            sum += abs(x1 - x2) + abs(y1 - y2)
+        return sum
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
