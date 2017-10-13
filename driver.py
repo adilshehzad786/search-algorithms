@@ -120,7 +120,7 @@ class BreadthFirstSearch(SearchAlgorithm):
         return self.frontier.dequeue()
 
     def is_frontier_empty(self):
-        return len(self.frontier) == 0
+        return self.frontier.isEmpty()
 
 class DepthFirstSearch(SearchAlgorithm):
     """Depth First Search implementation using Stack"""
@@ -135,7 +135,7 @@ class DepthFirstSearch(SearchAlgorithm):
         return self.frontier.pop()
 
     def is_frontier_empty(self):
-        return len(self.frontier) == 0
+        return self.frontier.isEmpty()
 
     def order_expanded(self, l):
         """Reverse the order to ensure visiting in UDLR"""
