@@ -3,10 +3,20 @@ import sys
 import copy
 import time
 import resource
-from collections import deque
+import collections
+import heapq
 
-def wait():
-    raw_input('')
+class PriorityQueue:
+    def __init__(self):
+        self._queue = []
+        self._index = 0
+
+    def push(self, item, priority):
+        heapq.heappush(self._queue, (-priority, self._index, item))
+        self._index += 1
+
+    def pop(self):
+        return heapq.heappop(self._queue)[-1]
 
 def memory_usage_resource():
     rusage_denom = 1024. * 1024.
@@ -23,11 +33,13 @@ class SearchAlgorithm:
 
     def search(self):
         start_time = time.time()
-        checked_boards = set()
+        visited = set()
+        frontier_set = set()
+        frontier_set.add(self.frontier[0].signature())
         while not self.is_frontier_empty():
             state = self.get_next()
-            print(state, state.moviments)
-            checked_boards.add(state.signature())
+            visited.add(state.signature())
+            frontier_set.remove(state.signature())
 
             self.max_ram_usage = max(self.max_ram_usage, memory_usage_resource())
             if state.is_goal_reached():
@@ -38,36 +50,35 @@ class SearchAlgorithm:
             for moviment in state.possible_moviments():
                 new_state = state.clone().apply_moviment(moviment)
                 self.max_search_depth = max(self.max_search_depth, len(new_state.moviments))
-                if new_state.signature() not in checked_boards:
-                    print(new_state.signature(), checked_boards, new_state.signature() not in checked_boards)
-                    wait()
+                if new_state.signature() not in visited and new_state.signature() not in frontier_set:
                     self.insert(new_state)
+                    frontier_set.add(new_state.signature())
 
         self.running_time = time.time() - start_time
         return None
 
 class BreadthFirstSearch(SearchAlgorithm):
     def init_frontier(self):
-        self.frontier = deque([self.board])
-
-    def insert(self, state):
-        self.frontier.append(state)
-
-    def get_next(self):
-        return self.frontier.popleft()
-
-    def is_frontier_empty(self):
-        return len(self.frontier) == 0
-
-class DepthFirstSearch(SearchAlgorithm):
-    def init_frontier(self):
-        self.frontier = [self.board]
+        self.frontier = collections.deque([self.board])
 
     def insert(self, state):
         self.frontier.append(state)
 
     def get_next(self):
         return self.frontier.pop()
+
+    def is_frontier_empty(self):
+        return len(self.frontier) == 0
+
+class DepthFirstSearch(SearchAlgorithm):
+    def init_frontier(self):
+        self.frontier = collections.deque([self.board])
+
+    def insert(self, state):
+        self.frontier.append(state)
+
+    def get_next(self):
+        return self.frontier.popleft()
 
     def is_frontier_empty(self):
         return len(self.frontier) == 0
@@ -176,12 +187,21 @@ if __name__ == '__main__':
 
     final_board = algorithm.search()
     if final_board:
-        print('path_to_goal: %s' % final_board.moviments)
-        print('cost_of_path: %s' % len(final_board.moviments))
-        print('nodes_expanded: %s' % algorithm.nodes_expanded)
-        print('search_depth: %s' % len(final_board.moviments))
-        print('max_search_depth: %s' % algorithm.max_search_depth)
-        print('running_time: %s' % algorithm.running_time)
-        print('max_ram_usage: %s' % algorithm.max_ram_usage)
+        output = open('output.txt','w')
+        output.write('path_to_goal: %s\n' % final_board.moviments)
+        output.write('cost_of_path: %s\n' % len(final_board.moviments))
+        output.write('nodes_expanded: %s\n' % algorithm.nodes_expanded)
+        output.write('search_depth: %s\n' % len(final_board.moviments))
+        output.write('max_search_depth: %s\n' % algorithm.max_search_depth)
+        output.write('running_time: %s\n' % algorithm.running_time)
+        output.write('max_ram_usage: %s\n' % algorithm.max_ram_usage)
+        output.close()
+#        print('path_to_goal: %s' % final_board.moviments)
+#        print('cost_of_path: %s' % len(final_board.moviments))
+#        print('nodes_expanded: %s' % algorithm.nodes_expanded)
+#        print('search_depth: %s' % len(final_board.moviments))
+#        print('max_search_depth: %s' % algorithm.max_search_depth)
+#        print('running_time: %s' % algorithm.running_time)
+#        print('max_ram_usage: %s' % algorithm.max_ram_usage)
     else:
-        print('Not found!')
+        eprint('Not found!')
