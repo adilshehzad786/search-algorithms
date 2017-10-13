@@ -80,6 +80,7 @@ class SearchAlgorithm:
         frontier_set.add(self.board)
         goal = Board.goal()
         nodes_expanded = 0
+        max_search_depth = self.board.depth
         while not self.is_frontier_empty():
             curr_node = self.get_next()
             visited.add(curr_node.state)
@@ -95,12 +96,14 @@ class SearchAlgorithm:
                     'nodes_expanded': nodes_expanded,
                     'depth': curr_node.depth,
                     'running_time': time.time() - start_time,
-                    'max_ram_usage': memory_usage_resource()
+                    'max_ram_usage': memory_usage_resource(),
+                    'max_search_depth': max_search_depth
                 }
 
             nodes_expanded += 1
             for expanded in self.order_expanded(curr_node.get_expanded()):
                 if expanded.state not in visited and expanded.state not in frontier_set:
+                    max_search_depth = max(expanded.depth, max_search_depth)
                     self.insert(expanded)
                     frontier_set.add(expanded.state)
 
@@ -159,14 +162,12 @@ class AStarSearch(SearchAlgorithm):
 class Board:
     """Board implementation"""
     LENGTH = 3
-    MAX_DEPTH = 0
     def __init__(self, state, parent = None, cost = 0, moviment = None, depth = 0):
         self.state = state
         self.parent = parent
         self.cost = cost
         self.moviment = moviment
         self.depth = depth
-        Board.MAX_DEPTH = max(Board.MAX_DEPTH, depth)
 
     @staticmethod
     def can_up(state):
@@ -280,7 +281,7 @@ if __name__ == '__main__':
         output.write('cost_of_path: %s\n' % len(final_board['moviments']))
         output.write('nodes_expanded: %s\n' % final_board['nodes_expanded'])
         output.write('search_depth: %s\n' % final_board['depth'])
-        output.write('max_search_depth: %s\n' % Board.MAX_DEPTH)
+        output.write('max_search_depth: %s\n' % final_board['max_search_depth'])
         output.write('running_time: %s\n' % final_board['running_time'])
         output.write('max_ram_usage: %s\n' % final_board['max_ram_usage'])
         output.close()
