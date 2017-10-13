@@ -3,10 +3,44 @@ import sys
 import copy
 import time
 import resource
-import collections
 import heapq
 
+class Stack:
+    """Stack implementation"""
+    def __init__(self):
+        self.items = []
+
+    def isEmpty(self):
+        return self.items == []
+
+    def push(self, item):
+        self.items.append(item)
+
+    def pop(self):
+        return self.items.pop()
+
+    def __len__(self):
+        return len(self.items)
+
+class Queue:
+    """Queue implementation"""
+    def __init__(self):
+        self.items = []
+
+    def isEmpty(self):
+        return self.items == []
+
+    def enqueue(self, item):
+        self.items.insert(0, item)
+
+    def dequeue(self):
+        return self.items.pop()
+
+    def __len__(self):
+        return len(self.items)
+
 class PriorityQueue:
+    """PriorityQueue implementation"""
     def __init__(self):
         self._queue = []
         self._index = 0
@@ -18,73 +52,81 @@ class PriorityQueue:
     def pop(self):
         return heapq.heappop(self._queue)[-1]
 
+    def __len__(self):
+        return len(self._queue)
+
 def memory_usage_resource():
     rusage_denom = 1024. * 1024.
     mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rusage_denom
     return mem
 
 class SearchAlgorithm:
+    """Abstract implementation of a search algorithm"""
     def __init__(self, board):
         self.board = board
         self.init_frontier()
         self.nodes_expanded = 0
         self.max_search_depth = 0
-        self.max_ram_usage = 0
     
     def order_expanded(self, list):
+        """Change expanded order. The order can variate by the algorithm implementation"""
         return list
 
     def search(self):
+        """Do the search"""
         start_time = time.time()
         visited = set()
         frontier_set = set()
-        frontier_set.add(self.frontier[0])
+        frontier_set.add(self.board)
         goal = Board.goal()
         nodes_expanded = 0
         while not self.is_frontier_empty():
-            state = self.get_next()
-            visited.add(state.state)
+            curr_node = self.get_next()
+            visited.add(curr_node.state)
 
-            self.max_ram_usage = max(self.max_ram_usage, memory_usage_resource())
-            if state.state == goal:
-                curr_state = state
+            if curr_node.state == goal:
+                p_node = curr_node
                 path = []
-                while curr_state.parent:
-                    path.insert(0, curr_state.moviment)
-                    curr_state = curr_state.parent
+                while p_node.parent:
+                    path.insert(0, p_node.moviment)
+                    p_node = p_node.parent
                 return {
                     'moviments': path,
                     'nodes_expanded': nodes_expanded,
-                    'depth': state.depth,
+                    'depth': curr_node.depth,
                     'running_time': time.time() - start_time,
-                    'max_ram_usage': self.max_ram_usage
+                    'max_ram_usage': memory_usage_resource()
                 }
 
             nodes_expanded += 1
-            for expanded in self.order_expanded(state.get_expanded()):
+            for expanded in self.order_expanded(curr_node.get_expanded()):
                 if expanded.state not in visited and expanded.state not in frontier_set:
                     self.insert(expanded)
                     frontier_set.add(expanded.state)
 
 class BreadthFirstSearch(SearchAlgorithm):
+    """Breadth First Search implementation using Queue"""
     def init_frontier(self):
-        self.frontier = collections.deque([self.board])
+        self.frontier = Queue()
+        self.frontier.enqueue(self.board)
 
     def insert(self, state):
-        self.frontier.appendleft(state)
+        self.frontier.enqueue(state)
 
     def get_next(self):
-        return self.frontier.pop()
+        return self.frontier.dequeue()
 
     def is_frontier_empty(self):
         return len(self.frontier) == 0
 
 class DepthFirstSearch(SearchAlgorithm):
+    """Depth First Search implementation using Stack"""
     def init_frontier(self):
-        self.frontier = collections.deque([self.board])
+        self.frontier = Stack()
+        self.frontier.push(self.board)
 
     def insert(self, state):
-        self.frontier.append(state)
+        self.frontier.push(state)
 
     def get_next(self):
         return self.frontier.pop()
@@ -93,17 +135,19 @@ class DepthFirstSearch(SearchAlgorithm):
         return len(self.frontier) == 0
 
     def order_expanded(self, l):
+        """Reverse the order to ensure visiting in UDLR"""
         _l = list(l)
         _l.reverse()
         return _l
 
-
 class AStarSearch(SearchAlgorithm):
+    """A* Search implementation using Priority Queue"""
     def init_frontier(self):
-        self.frontier = [self.board]
+        self.frontier = Stack()
+        self.frontier.push(self.board)
 
     def insert(self, state):
-        self.frontier.append(state)
+        self.frontier.push(state)
 
     def get_next(self):
         return self.frontier.pop()
@@ -112,6 +156,7 @@ class AStarSearch(SearchAlgorithm):
         return len(self.frontier) == 0
 
 class Board:
+    """Board implementation"""
     LENGTH = 3
     MAX_DEPTH = 0
     def __init__(self, state, parent = None, cost = 0, moviment = None, depth = 0):
@@ -121,66 +166,74 @@ class Board:
         self.moviment = moviment
         self.depth = depth
         Board.MAX_DEPTH = max(Board.MAX_DEPTH, depth)
-    def __str__(self):
-        return self.state
+
+    @staticmethod
+    def can_up(state):
+        return state.index(0) >= Board.LENGTH
+
+    LAST_ROW_INDEX = LENGTH * (LENGTH - 1)
+    @staticmethod
+    def can_down(state):
+        return state.index(0) < Board.LAST_ROW_INDEX
+
+    @staticmethod
+    def can_left(state):
+        return state.index(0) % Board.LENGTH != 0
+
+    @staticmethod
+    def can_right(state):
+        return (state.index(0) + 1) % Board.LENGTH != 0
 
     @staticmethod
     def up(state):
-        state_l = list(state)
-        index = state_l.index(0)
-        if index not in range(Board.LENGTH):
-            state_l[index - Board.LENGTH], state_l[index] = state_l[index], state_l[index - Board.LENGTH]
-            state = tuple(state_l)
-            return state
-        else:
-            return 0
+        new_state = list(state)
+        index = new_state.index(0)
+        new_state[index - Board.LENGTH], new_state[index] = new_state[index], new_state[index - Board.LENGTH]
+        return tuple(new_state)
 
     @staticmethod
     def down(state):
-        state_l = list(state)
-        index = state_l.index(0)
-        if index not in range(Board.LENGTH * (Board.LENGTH - 1),Board.LENGTH * Board.LENGTH):
-            state_l[index + Board.LENGTH], state_l[index] = state_l[index], state_l[index + Board.LENGTH]
-            state = tuple(state_l)
-            return state
-        else:
-            return 0
+        new_state = list(state)
+        index = new_state.index(0)
+        new_state[index + Board.LENGTH], new_state[index] = new_state[index], new_state[index + Board.LENGTH]
+        return tuple(new_state)
 
     @staticmethod
     def left(state):
-        state_l = list(state)
-        index = state_l.index(0)
-        if index not in range(0,len(state), Board.LENGTH):
-            state_l[index-1], state_l[index] = state_l[index], state_l[index-1]
-            state = tuple(state_l)
-            return state
-        else:
-            return 0
+        new_state = list(state)
+        index = new_state.index(0)
+        new_state[index - 1], new_state[index] = new_state[index], new_state[index - 1]
+        return tuple(new_state)
 
     @staticmethod
     def right(state):
-        state_l = list(state)
-        index = state_l.index(0)
-        if index not in range(Board.LENGTH - 1,len(state_l), Board.LENGTH):
-            state_l[index + 1], state_l[index] = state_l[index], state_l[index + 1]
-            state = tuple(state_l)
-            return state
-        else:
-            return 0
+        new_state = list(state)
+        index = new_state.index(0)
+        new_state[index + 1], new_state[index] = new_state[index], new_state[index + 1]
+        return tuple(new_state)
 
+    def __str__(self):
+        return self.state
+    
     def get_expanded(self):
+        """Retrieve all expanded nodes"""
         expanded = []
-        expanded.append(Board(Board.up(self.state), self, self.cost + 1, 'Up', self.depth + 1))
-        expanded.append(Board(Board.down(self.state), self, self.cost + 1, 'Down', self.depth + 1))
-        expanded.append(Board(Board.left(self.state), self, self.cost + 1, 'Left', self.depth + 1))
-        expanded.append(Board(Board.right(self.state), self, self.cost + 1, 'Right', self.depth + 1))
-
-        expanded = [self for self in expanded if self.state != 0]
+        next_cost = self.cost + 1
+        next_depth = self.depth + 1
+        if Board.can_up(self.state):
+            expanded.append(Board(Board.up(self.state), self, next_cost, 'Up', next_depth))
+        if Board.can_down(self.state):
+            expanded.append(Board(Board.down(self.state), self, next_cost, 'Down', next_depth))
+        if Board.can_left(self.state):
+            expanded.append(Board(Board.left(self.state), self, next_cost, 'Left', next_depth))
+        if Board.can_right(self.state):
+            expanded.append(Board(Board.right(self.state), self, next_cost, 'Right', next_depth))
 
         return tuple(expanded)
 
     @staticmethod
     def goal():
+        """Create a static goal state"""
         goal = []
         for i in range(Board.LENGTH * Board.LENGTH):
             goal.append(i)
@@ -216,12 +269,5 @@ if __name__ == '__main__':
         output.write('running_time: %s\n' % final_board['running_time'])
         output.write('max_ram_usage: %s\n' % final_board['max_ram_usage'])
         output.close()
-#        print('path_to_goal: %s' % final_board['moviments'])
-#        print('cost_of_path: %s' % len(final_board['moviments']))
-#        print('nodes_expanded: %s' % final_board['nodes_expanded'])
-#        print('search_depth: %s' % final_board['depth'])
-#        print('max_search_depth: %s' % Board.MAX_DEPTH)
-#        print('running_time: %s' % final_board['running_time'])
-#        print('max_ram_usage: %s' % final_board['max_ram_usage'])
     else:
         eprint('Not found!')
